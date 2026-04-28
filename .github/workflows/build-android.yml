@@ -1,0 +1,57 @@
+name: Build Sable Rapier for Android (aarch64)
+
+on:
+  workflow_dispatch: # Run manually from GitHub Actions tab
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Sable repo
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Android NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
+      - name: Configure Cargo for Android cross-compile
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml << 'EOF'
+          [target.aarch64-linux-android]
+          linker = "$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
+          ar = "$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          EOF
+
+      - name: Set NDK env vars
+        run: |
+          NDK=$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin
+          echo "CC_aarch64_linux_android=$NDK/aarch64-linux-android21-clang" >> $GITHUB_ENV
+          echo "AR_aarch64_linux_android=$NDK/llvm-ar" >> $GITHUB_ENV
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK/aarch64-linux-android21-clang" >> $GITHUB_ENV
+
+      - name: Build native library
+        # Adjust this path if the Rust crate is in a subdirectory e.g. cd rapier-native
+        run: |
+          cargo build --release --target aarch64-linux-android
+          # Find the output .so
+          find target -name "*.so" | grep aarch64-linux-android
+
+      - name: Rename output
+        run: |
+          find target/aarch64-linux-android/release -name "*.so" -exec \
+            cp {} sable_rapier_aarch64_android.so \;
+
+      - name: Upload .so as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sable_rapier_aarch64_android
+          path: sable_rapier_aarch64_android.so
