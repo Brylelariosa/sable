@@ -1,7 +1,7 @@
 name: Build Sable Rapier for Android (aarch64)
 
 on:
-  workflow_dispatch: # Run manually from GitHub Actions tab
+  workflow_dispatch:
 
 jobs:
   build-android:
@@ -10,6 +10,12 @@ jobs:
     steps:
       - name: Checkout Sable repo
         uses: actions/checkout@v4
+
+      - name: Find Cargo.toml location
+        run: |
+          echo "=== Repo structure ==="
+          find . -name "Cargo.toml" | head -20
+          find . -name "*.rs" | head -20
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -24,11 +30,12 @@ jobs:
 
       - name: Configure Cargo for Android cross-compile
         run: |
+          NDK=$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin
           mkdir -p ~/.cargo
-          cat >> ~/.cargo/config.toml << 'EOF'
+          cat >> ~/.cargo/config.toml << EOF
           [target.aarch64-linux-android]
-          linker = "$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang"
-          ar = "$ANDROID_HOME/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          linker = "$NDK/aarch64-linux-android21-clang"
+          ar = "$NDK/llvm-ar"
           EOF
 
       - name: Set NDK env vars
@@ -39,18 +46,19 @@ jobs:
           echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$NDK/aarch64-linux-android21-clang" >> $GITHUB_ENV
 
       - name: Build native library
-        # Adjust this path if the Rust crate is in a subdirectory e.g. cd rapier-native
         run: |
+          CARGO_DIR=$(find . -name "Cargo.toml" -exec grep -l "rapier\|jni\|sable" {} \; | head -1 | xargs dirname)
+          echo "Building from: $CARGO_DIR"
+          cd $CARGO_DIR
           cargo build --release --target aarch64-linux-android
-          # Find the output .so
           find target -name "*.so" | grep aarch64-linux-android
 
-      - name: Rename output
+      - name: Collect output
         run: |
-          find target/aarch64-linux-android/release -name "*.so" -exec \
-            cp {} sable_rapier_aarch64_android.so \;
+          find . -path "*/aarch64-linux-android/release/*.so" -exec cp {} sable_rapier_aarch64_android.so \;
+          ls -la sable_rapier_aarch64_android.so
 
-      - name: Upload .so as artifact
+      - name: Upload .so artifact
         uses: actions/upload-artifact@v4
         with:
           name: sable_rapier_aarch64_android
