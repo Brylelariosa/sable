@@ -43,13 +43,12 @@ jobs:
 
       - name: Build native library
         working-directory: common/src/main/rust/rapier
-        run: |
-          cargo build --release --target aarch64-linux-android
-          find target -name "*.so" | grep aarch64-linux-android
+        run: cargo build --release --target aarch64-linux-android
 
-      - name: Collect output
+      - name: Collect and rename output
         run: |
-          find . -path "*/aarch64-linux-android/release/*.so" -exec cp {} sable_rapier_aarch64_android.so \;
+          find . -path "*/aarch64-linux-android/release/lib*.so" | head -5
+          find . -path "*/aarch64-linux-android/release/lib*.so" -exec cp {} sable_rapier_aarch64_android.so \;
           ls -la sable_rapier_aarch64_android.so
 
       - name: Upload .so artifact
